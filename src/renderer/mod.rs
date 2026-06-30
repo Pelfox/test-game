@@ -66,8 +66,8 @@ impl GameRenderer {
 
         let mut cube_object = CubeObject::new();
         cube_object.with_transform(Transform {
-            position: Vec3d::new(0.0, 0.5, -5.0),
-            rotation: Vec3d::default(),
+            position: Vec3d::new(0.0, 0.25, -5.0),
+            rotation: Vec3d::new(0.5, 0.5, 0.0),
             scale: Vec3d::new(1.0, 1.0, 1.0),
         });
         cube_object.with_material(Material::Color(Color::hex(0xFFF22FFF)));

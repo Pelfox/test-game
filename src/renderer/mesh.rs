@@ -22,14 +22,23 @@ pub const INDICES_FORMAT: IndexFormat = IndexFormat::Uint16;
 pub struct Vertex {
     /// Position of the vertex, relative to mesh local coordinate system.
     pub position: Vec3d,
+    /// The direction of the normal axis for the vertex.
+    pub normal: Vec3d,
 }
 
 impl Vertex {
-    const ATTRIBUTES: [VertexAttribute; 1] = [VertexAttribute {
-        offset: 0,
-        shader_location: 0,
-        format: Vec3d::VERTEX_FORMAT,
-    }];
+    const ATTRIBUTES: [VertexAttribute; 2] = [
+        VertexAttribute {
+            offset: 0,
+            shader_location: 0,
+            format: Vec3d::VERTEX_FORMAT,
+        },
+        VertexAttribute {
+            offset: size_of::<Vec3d>() as BufferAddress,
+            shader_location: 1,
+            format: Vec3d::VERTEX_FORMAT,
+        },
+    ];
 
     /// Converts [Vertex] to the buffer layout, regardless of its contents.
     pub fn to_buffer_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
@@ -41,9 +50,10 @@ impl Vertex {
         }
     }
 
-    /// Creates a new vertex with the given position (in local coordinate space).
-    pub fn new(position: Vec3d) -> Self {
-        Self { position }
+    /// Creates a new vertex with the given position (in local coordinate
+    /// space) and the normal.
+    pub fn new(position: Vec3d, normal: Vec3d) -> Self {
+        Self { position, normal }
     }
 }
 
@@ -60,27 +70,54 @@ pub struct MeshData {
 impl MeshData {
     /// Creates a new mesh for the cube.
     ///
-    /// This function creates an 8-vertex cube.
+    /// This function creates an 24-vertex cube.
     pub fn cube() -> Self {
+        let normal_front = Vec3d::new(0.0, 0.0, 1.0);
+        let normal_back = Vec3d::new(0.0, 0.0, -1.0);
+        let normal_left = Vec3d::new(-1.0, 0.0, 0.0);
+        let normal_right = Vec3d::new(1.0, 0.0, 0.0);
+        let normal_top = Vec3d::new(0.0, 1.0, 0.0);
+        let normal_bottom = Vec3d::new(0.0, -1.0, 0.0);
+
         let vertices = vec![
-            // front face corners, z = 1
-            Vertex::new(Vec3d::new(-1.0, -1.0, 1.0)),
-            Vertex::new(Vec3d::new(1.0, -1.0, 1.0)),
-            Vertex::new(Vec3d::new(1.0, 1.0, 1.0)),
-            Vertex::new(Vec3d::new(-1.0, 1.0, 1.0)),
-            // back face corners, z = -1
-            Vertex::new(Vec3d::new(-1.0, -1.0, -1.0)),
-            Vertex::new(Vec3d::new(1.0, -1.0, -1.0)),
-            Vertex::new(Vec3d::new(1.0, 1.0, -1.0)),
-            Vertex::new(Vec3d::new(-1.0, 1.0, -1.0)),
+            // front face, z = 1
+            Vertex::new(Vec3d::new(-1.0, -1.0, 1.0), normal_front),
+            Vertex::new(Vec3d::new(1.0, -1.0, 1.0), normal_front),
+            Vertex::new(Vec3d::new(1.0, 1.0, 1.0), normal_front),
+            Vertex::new(Vec3d::new(-1.0, 1.0, 1.0), normal_front),
+            // back face, z = -1
+            Vertex::new(Vec3d::new(1.0, -1.0, -1.0), normal_back),
+            Vertex::new(Vec3d::new(-1.0, -1.0, -1.0), normal_back),
+            Vertex::new(Vec3d::new(-1.0, 1.0, -1.0), normal_back),
+            Vertex::new(Vec3d::new(1.0, 1.0, -1.0), normal_back),
+            // right face, x = 1
+            Vertex::new(Vec3d::new(1.0, -1.0, 1.0), normal_right),
+            Vertex::new(Vec3d::new(1.0, -1.0, -1.0), normal_right),
+            Vertex::new(Vec3d::new(1.0, 1.0, -1.0), normal_right),
+            Vertex::new(Vec3d::new(1.0, 1.0, 1.0), normal_right),
+            // left face, x = -1
+            Vertex::new(Vec3d::new(-1.0, -1.0, -1.0), normal_left),
+            Vertex::new(Vec3d::new(-1.0, -1.0, 1.0), normal_left),
+            Vertex::new(Vec3d::new(-1.0, 1.0, 1.0), normal_left),
+            Vertex::new(Vec3d::new(-1.0, 1.0, -1.0), normal_left),
+            // top face, y = 1
+            Vertex::new(Vec3d::new(-1.0, 1.0, 1.0), normal_top),
+            Vertex::new(Vec3d::new(1.0, 1.0, 1.0), normal_top),
+            Vertex::new(Vec3d::new(1.0, 1.0, -1.0), normal_top),
+            Vertex::new(Vec3d::new(-1.0, 1.0, -1.0), normal_top),
+            // bottom face, y = -1
+            Vertex::new(Vec3d::new(-1.0, -1.0, -1.0), normal_bottom),
+            Vertex::new(Vec3d::new(1.0, -1.0, -1.0), normal_bottom),
+            Vertex::new(Vec3d::new(1.0, -1.0, 1.0), normal_bottom),
+            Vertex::new(Vec3d::new(-1.0, -1.0, 1.0), normal_bottom),
         ];
         let indices = vec![
             0, 1, 2, 0, 2, 3, // front
-            1, 5, 6, 1, 6, 2, // right
-            5, 4, 7, 5, 7, 6, // back
-            4, 0, 3, 4, 3, 7, // left
-            3, 2, 6, 3, 6, 7, // top
-            4, 5, 1, 4, 1, 0, // bottom
+            4, 5, 6, 4, 6, 7, // back
+            8, 9, 10, 8, 10, 11, // right
+            12, 13, 14, 12, 14, 15, // left
+            16, 17, 18, 16, 18, 19, // top
+            20, 21, 22, 20, 22, 23, // bottom
         ];
         Self {
             vertices,
@@ -91,17 +128,18 @@ impl MeshData {
 
     /// Creates a new mesh for the plane.
     pub fn plane() -> Self {
+        // All vertices of the plane have the same normal since it is flat.
+        let normal = Vec3d::new(0.0, 1.0, 0.0);
         let vertices = vec![
-            Vertex::new(Vec3d::new(-1.0, 0.0, -1.0)),
-            Vertex::new(Vec3d::new(1.0, 0.0, -1.0)),
-            Vertex::new(Vec3d::new(1.0, 0.0, 1.0)),
-            Vertex::new(Vec3d::new(-1.0, 0.0, 1.0)),
+            Vertex::new(Vec3d::new(-1.0, 0.0, -1.0), normal),
+            Vertex::new(Vec3d::new(1.0, 0.0, -1.0), normal),
+            Vertex::new(Vec3d::new(1.0, 0.0, 1.0), normal),
+            Vertex::new(Vec3d::new(-1.0, 0.0, 1.0), normal),
         ];
         let indices = vec![
             0, 1, 2, // first triangle
             0, 2, 3, // second triangle
         ];
-
         Self {
             vertices,
             indices,
