@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use wgpu::{
     Color, Device, IndexFormat, Instance, LoadOp, Operations, Queue, RenderPassColorAttachment,
-    RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
+    RenderPassDepthStencilAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp,
+    Surface,
     wgt::{CommandEncoderDescriptor, DeviceDescriptor, TextureViewDescriptor},
 };
 use winit::window::Window;
@@ -101,7 +102,15 @@ impl GameRenderer {
                     },
                 })],
                 // Allows GPU to select which triangle is closer.
-                depth_stencil_attachment: None,
+                // TODO: read more about this
+                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                    view: &self.pipeline.depth_texture_view,
+                    depth_ops: Some(Operations {
+                        load: LoadOp::Clear(1.0),
+                        store: StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None, // Required for anti-aliasing/multisampling.

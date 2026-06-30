@@ -1,10 +1,13 @@
 use wgpu::{
     BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer,
-    BufferAddress, BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, Device,
-    FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor,
-    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor,
-    ShaderModule, ShaderStages, TextureFormat, VertexAttribute, VertexState,
+    BufferAddress, BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, CompareFunction,
+    DepthBiasState, DepthStencilState, Device, FragmentState, FrontFace, MultisampleState,
+    PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
+    RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderStages, StencilState, Texture,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
+    VertexAttribute, VertexState,
     util::{BufferInitDescriptor, DeviceExt},
+    wgt::TextureViewDescriptor,
 };
 
 use crate::{
@@ -60,6 +63,8 @@ pub struct RendererPipeline {
     pub camera_buffer: Buffer,
     pub camera: Camera,
     pub camera_bind_group: BindGroup,
+    pub depth_texture: Texture,
+    pub depth_texture_view: TextureView,
     pipeline_layout: PipelineLayout,
     pub pipeline: RenderPipeline,
     pub indices_num: usize,
@@ -74,14 +79,26 @@ impl RendererPipeline {
         });
 
         let VERTICES: &[Vertex] = &[
-            // bottom-left
-            Vertex::new(Vec3d::new(-0.5, -0.5, 0.0), Color::hex(0xFF0000FF)),
-            // bottom-right
-            Vertex::new(Vec3d::new(0.5, -0.5, 0.0), Color::hex(0x00FF00FF)),
-            // top-left
-            Vertex::new(Vec3d::new(-0.5, 0.5, 0.0), Color::hex(0x0000FFFF)),
-            // top-right
-            Vertex::new(Vec3d::new(0.5, 0.5, 0.0), Color::hex(0xFFFFFFFF)),
+            // front face corners, z = 1
+            Vertex::new(Vec3d::new(-1.0, -1.0, 1.0), Color::hex(0xFF0000FF)),
+            Vertex::new(Vec3d::new(1.0, -1.0, 1.0), Color::hex(0x00FF00FF)),
+            Vertex::new(Vec3d::new(1.0, 1.0, 1.0), Color::hex(0x0000FFFF)),
+            Vertex::new(Vec3d::new(-1.0, 1.0, 1.0), Color::hex(0xFFFFFFFF)),
+            // back face corners, z = -1
+            Vertex::new(Vec3d::new(-1.0, -1.0, -1.0), Color::hex(0xFFFF00FF)),
+            Vertex::new(Vec3d::new(1.0, -1.0, -1.0), Color::hex(0xFF00FFFF)),
+            Vertex::new(Vec3d::new(1.0, 1.0, -1.0), Color::hex(0x00FFFFFF)),
+            Vertex::new(Vec3d::new(-1.0, 1.0, -1.0), Color::hex(0x888888FF)),
+        ];
+
+        let INDICES: &[u16] = &[
+            // front
+            0, 1, 2, 0, 2, 3, // right
+            1, 5, 6, 1, 6, 2, // back
+            5, 4, 7, 5, 7, 6, // left
+            4, 0, 3, 4, 3, 7, // top
+            3, 2, 6, 3, 6, 7, // bottom
+            4, 5, 1, 4, 1, 0,
         ];
 
         // Creates a vertex buffer that holds all vertices.
@@ -94,13 +111,13 @@ impl RendererPipeline {
         // Creates indices buffer that holds all indices to the vertices.
         let indices_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Renderer Indices Buffer"),
-            contents: bytemuck::cast_slice(&[0u16, 1u16, 2u16, 2u16, 1u16, 3u16]),
+            contents: bytemuck::cast_slice(INDICES),
             usage: BufferUsages::INDEX,
         });
 
         let camera = Camera {
-            eye: Vec3d::new(0.0, 0.0, 3.0),
-            direction: Vec3d::new(0.0, 0.0, -1.0),
+            eye: Vec3d::new(2.0, 2.0, 5.0),
+            direction: Vec3d::new(-2.0, -2.0, -5.0),
             up_direction: Vec3d::new(0.0, 1.0, 0.0),
             aspect_ratio: width as f32 / height as f32,
             fov: 45.0_f32.to_radians(),
@@ -148,6 +165,22 @@ impl RendererPipeline {
             immediate_size: 0,
         });
 
+        let depth_texture = device.create_texture(&TextureDescriptor {
+            label: Some("Rednerer Depth Texture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Depth24Plus,
+            usage: TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let depth_texture_view = depth_texture.create_view(&TextureViewDescriptor::default());
+
         // And finally, creating rendering pipeline itself.
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Renderer Pipeline"),
@@ -179,7 +212,14 @@ impl RendererPipeline {
                 polygon_mode: PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: None,
+            // TODO: Read more about parameters.
+            depth_stencil: Some(DepthStencilState {
+                format: TextureFormat::Depth24Plus,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(CompareFunction::Less),
+                stencil: StencilState::default(),
+                bias: DepthBiasState::default(),
+            }),
             multisample: MultisampleState {
                 count: 1,
                 mask: !0,
@@ -198,7 +238,9 @@ impl RendererPipeline {
             camera_bind_group,
             pipeline_layout,
             pipeline,
-            indices_num: 6,
+            depth_texture,
+            depth_texture_view,
+            indices_num: INDICES.len(),
         }
     }
 }
