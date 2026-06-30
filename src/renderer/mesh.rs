@@ -58,7 +58,7 @@ pub struct MeshData {
 }
 
 impl MeshData {
-    /// Creates a new mesh for the cube with the given color.
+    /// Creates a new mesh for the cube.
     ///
     /// This function creates an 8-vertex cube.
     pub fn cube() -> Self {
@@ -88,6 +88,26 @@ impl MeshData {
             label: "Cube",
         }
     }
+
+    /// Creates a new mesh for the plane.
+    pub fn plane() -> Self {
+        let vertices = vec![
+            Vertex::new(Vec3d::new(-1.0, 0.0, -1.0)),
+            Vertex::new(Vec3d::new(1.0, 0.0, -1.0)),
+            Vertex::new(Vec3d::new(1.0, 0.0, 1.0)),
+            Vertex::new(Vec3d::new(-1.0, 0.0, 1.0)),
+        ];
+        let indices = vec![
+            0, 1, 2, // first triangle
+            0, 2, 3, // second triangle
+        ];
+
+        Self {
+            vertices,
+            indices,
+            label: "Plane",
+        }
+    }
 }
 
 /// Describes the type for the unique mesh ID.
@@ -95,6 +115,8 @@ impl MeshData {
 pub enum MeshId {
     /// Representation of a cube.
     Cube,
+    /// Representation of a plane.
+    Plane,
 }
 
 /// GPU-sided mesh, with ready to write buffers.

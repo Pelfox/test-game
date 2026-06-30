@@ -14,7 +14,11 @@ use winit::window::Window;
 use crate::{
     math::{transform::Transform, vector::Vec3d},
     renderer::{color::Color, pipeline::RendererPipeline},
-    scene::{camera::Camera, material::Material, object::CubeObject},
+    scene::{
+        camera::Camera,
+        material::Material,
+        object::{CubeObject, PlaneObject},
+    },
 };
 
 pub struct GameRenderer {
@@ -68,6 +72,15 @@ impl GameRenderer {
         });
         cube_object.with_material(Material::Color(Color::hex(0xFFF22FFF)));
         pipeline.register_object(&device, cube_object.into_object_parts());
+
+        let mut plane_object = PlaneObject::new();
+        plane_object.with_transform(Transform {
+            position: Vec3d::new(0.0, -1.0, 0.0),
+            rotation: Vec3d::default(),
+            scale: Vec3d::new(10.0, 1.0, 10.0),
+        });
+        plane_object.with_material(Material::Color(Color::hex(0xFFFFFFFF)));
+        pipeline.register_object(&device, plane_object.into_object_parts());
 
         Ok(Self {
             surface,

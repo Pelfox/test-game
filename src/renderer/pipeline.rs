@@ -28,6 +28,7 @@ pub type ObjectParts = (MeshId, Transform, Material);
 fn initialize_mesh_types(device: &Device) -> HashMap<MeshId, Mesh> {
     let mut meshes = HashMap::new();
     meshes.insert(MeshId::Cube, Mesh::from_data(device, MeshData::cube())); // Cube.
+    meshes.insert(MeshId::Plane, Mesh::from_data(device, MeshData::plane())); // Plane.
     meshes
 }
 

@@ -35,3 +35,35 @@ impl CubeObject {
         (MeshId::Cube, self.transform, self.material)
     }
 }
+
+/// Represents a single plane object.
+pub struct PlaneObject {
+    transform: Transform,
+    material: Material,
+}
+
+impl PlaneObject {
+    /// Creates a new plane object, setting its properties to default values.
+    pub fn new() -> Self {
+        Self {
+            transform: Transform::default(),
+            material: Material::Color(Color::hex(0xFFFFFFFF)),
+        }
+    }
+
+    /// Updates this plane's transform.
+    pub fn with_transform(&mut self, transform: Transform) {
+        self.transform = transform;
+    }
+
+    /// Update this plane's material.
+    pub fn with_material(&mut self, material: Material) {
+        self.material = material;
+    }
+
+    /// Converts this object into parts that will create the final renderer
+    /// object.
+    pub fn into_object_parts(self) -> (MeshId, Transform, Material) {
+        (MeshId::Plane, self.transform, self.material)
+    }
+}
