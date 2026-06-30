@@ -1,5 +1,4 @@
 pub mod color;
-pub mod geometry;
 pub mod pipeline;
 
 use std::sync::Arc;
@@ -45,7 +44,7 @@ impl GameRenderer {
         surface.configure(&device, &config);
         log::debug!("Configured window's surface for the target device");
 
-        let pipeline = RendererPipeline::new(&device, &config.format);
+        let pipeline = RendererPipeline::new(&device, &config.format, config.width, config.height);
 
         Ok(Self {
             window,
@@ -108,6 +107,7 @@ impl GameRenderer {
                 multiview_mask: None, // Required for anti-aliasing/multisampling.
             });
             render_pass.set_pipeline(&self.pipeline.pipeline);
+            render_pass.set_bind_group(0, &self.pipeline.camera_bind_group, &[]);
             // Add renderer pipeline's vertex buffer to the render pass.
             render_pass.set_vertex_buffer(0, self.pipeline.vertex_buffer.slice(..));
             // Add renderer pipeline's indices buffer to the render pass.

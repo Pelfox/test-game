@@ -1,5 +1,7 @@
 use winit::event_loop::{ControlFlow, EventLoop};
 
+pub mod camera;
+pub mod math;
 pub mod renderer;
 pub mod state;
 
