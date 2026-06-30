@@ -1,4 +1,4 @@
-/// Represents a 4x4 matrix for the given type.
+/// Represents a 4x4 matrix for the f32 type.
 #[repr(C)]
 #[derive(Clone, Copy, std::fmt::Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Matrix4x4 {
@@ -9,7 +9,7 @@ pub struct Matrix4x4 {
 impl Matrix4x4 {
     /// Describes the format of the structure as a vertex, allowing to create
     /// vertex attributes with this structure.
-    pub const VERTEX_FORMAT: wgpu::VertexFormat = wgpu::VertexFormat::Float32x3;
+    pub const VERTEX_FORMAT: wgpu::VertexFormat = wgpu::VertexFormat::Float32x4;
 
     /// Creates a new 4x4 matrix from the given rows.
     pub fn from_rows(rows: [[f32; 4]; 4]) -> Self {

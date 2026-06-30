@@ -1,6 +1,6 @@
 /// Represents a three-dimensional vector.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vec3d {
     /// The vector component along the X axis.
     pub x: f32,

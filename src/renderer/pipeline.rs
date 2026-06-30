@@ -1,11 +1,10 @@
 use wgpu::{
     BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer,
-    BufferAddress, BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, CompareFunction,
+    BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, CompareFunction,
     DepthBiasState, DepthStencilState, Device, FragmentState, FrontFace, MultisampleState,
     PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
     RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderStages, StencilState, Texture,
-    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
-    VertexAttribute, VertexState,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, VertexState,
     util::{BufferInitDescriptor, DeviceExt},
     wgt::TextureViewDescriptor,
 };
@@ -13,53 +12,14 @@ use wgpu::{
 use crate::{
     camera::{Camera, CameraUniform},
     math::vector::Vec3d,
-    renderer::color::Color,
+    renderer::{
+        color::Color,
+        mesh::{Mesh, MeshData, Object, Transform, Vertex},
+    },
 };
-
-/// Represents a single vertex of an object.
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex {
-    /// Position of the vertex, relative to mesh local coordinate system.
-    pub position: Vec3d,
-    /// Color of the vertex.
-    pub color: Color,
-}
-
-impl Vertex {
-    const ATTRIBUTES: [VertexAttribute; 2] = [
-        VertexAttribute {
-            offset: 0,
-            shader_location: 0,
-            format: Vec3d::VERTEX_FORMAT,
-        },
-        VertexAttribute {
-            offset: size_of::<Vec3d>() as BufferAddress,
-            shader_location: 1,
-            format: Color::VERTEX_FORMAT,
-        },
-    ];
-
-    /// Converts [Vertex] to the buffer layout, regardless of its contents.
-    pub fn to_buffer_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
-        let vertex_size = size_of::<Self>() as BufferAddress;
-        wgpu::VertexBufferLayout {
-            array_stride: vertex_size,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBUTES,
-        }
-    }
-
-    /// Creates a new vertex with the given position and color.
-    pub fn new(position: Vec3d, color: Color) -> Self {
-        Self { position, color }
-    }
-}
 
 pub struct RendererPipeline {
     shader_module: ShaderModule,
-    pub vertex_buffer: Buffer,
-    pub indices_buffer: Buffer,
     pub camera_buffer: Buffer,
     pub camera: Camera,
     pub camera_bind_group: BindGroup,
@@ -67,7 +27,9 @@ pub struct RendererPipeline {
     pub depth_texture_view: TextureView,
     pipeline_layout: PipelineLayout,
     pub pipeline: RenderPipeline,
-    pub indices_num: usize,
+
+    pub objects: Vec<Object>,
+    pub meshes: Vec<Mesh>,
 }
 
 impl RendererPipeline {
@@ -78,42 +40,55 @@ impl RendererPipeline {
             source: wgpu::ShaderSource::Wgsl(include_str!("./shader.wgsl").into()),
         });
 
-        let VERTICES: &[Vertex] = &[
-            // front face corners, z = 1
-            Vertex::new(Vec3d::new(-1.0, -1.0, 1.0), Color::hex(0xFF0000FF)),
-            Vertex::new(Vec3d::new(1.0, -1.0, 1.0), Color::hex(0x00FF00FF)),
-            Vertex::new(Vec3d::new(1.0, 1.0, 1.0), Color::hex(0x0000FFFF)),
-            Vertex::new(Vec3d::new(-1.0, 1.0, 1.0), Color::hex(0xFFFFFFFF)),
-            // back face corners, z = -1
-            Vertex::new(Vec3d::new(-1.0, -1.0, -1.0), Color::hex(0xFFFF00FF)),
-            Vertex::new(Vec3d::new(1.0, -1.0, -1.0), Color::hex(0xFF00FFFF)),
-            Vertex::new(Vec3d::new(1.0, 1.0, -1.0), Color::hex(0x00FFFFFF)),
-            Vertex::new(Vec3d::new(-1.0, 1.0, -1.0), Color::hex(0x888888FF)),
+        let objects_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Renderer Objects Group Layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let mut meshes = Vec::new();
+
+        let cube_mesh_data = MeshData::cube(Color::hex(0xFFFFFFFF));
+        let (cube_mesh_id, cube_mesh) = Mesh::from_data(&device, &cube_mesh_data);
+        meshes.insert(cube_mesh_id, cube_mesh);
+
+        let objects = vec![
+            // Object::new(
+            //     cube_mesh_id,
+            //     &device,
+            //     Transform::default(),
+            //     &objects_bind_group_layout,
+            // ),
+            Object::new(
+                cube_mesh_id,
+                &device,
+                Transform {
+                    position: Vec3d::new(3.0, 0.0, 0.0),
+                    rotation: Vec3d::default(),
+                    scale: Vec3d::new(0.75, 0.75, 0.75),
+                },
+                &objects_bind_group_layout,
+            ),
+            Object::new(
+                cube_mesh_id,
+                &device,
+                Transform {
+                    position: Vec3d::new(-1.0, 0.75, 0.0),
+                    rotation: Vec3d::default(),
+                    scale: Vec3d::new(0.5, 0.9, 1.0),
+                },
+                &objects_bind_group_layout,
+            ),
         ];
-
-        let INDICES: &[u16] = &[
-            // front
-            0, 1, 2, 0, 2, 3, // right
-            1, 5, 6, 1, 6, 2, // back
-            5, 4, 7, 5, 7, 6, // left
-            4, 0, 3, 4, 3, 7, // top
-            3, 2, 6, 3, 6, 7, // bottom
-            4, 5, 1, 4, 1, 0,
-        ];
-
-        // Creates a vertex buffer that holds all vertices.
-        let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Renderer Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: BufferUsages::VERTEX,
-        });
-
-        // Creates indices buffer that holds all indices to the vertices.
-        let indices_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Renderer Indices Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: BufferUsages::INDEX,
-        });
 
         let camera = Camera {
             eye: Vec3d::new(2.0, 2.0, 5.0),
@@ -161,7 +136,10 @@ impl RendererPipeline {
         // Creates render pipeline layout, telling wgpu which external resources are needed.
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Renderer Pipeline Layout"),
-            bind_group_layouts: &[Some(&camera_bind_group_layout)],
+            bind_group_layouts: &[
+                Some(&camera_bind_group_layout),
+                Some(&objects_bind_group_layout),
+            ],
             immediate_size: 0,
         });
 
@@ -231,8 +209,6 @@ impl RendererPipeline {
 
         Self {
             shader_module,
-            vertex_buffer,
-            indices_buffer,
             camera,
             camera_buffer,
             camera_bind_group,
@@ -240,7 +216,8 @@ impl RendererPipeline {
             pipeline,
             depth_texture,
             depth_texture_view,
-            indices_num: INDICES.len(),
+            objects,
+            meshes,
         }
     }
 }

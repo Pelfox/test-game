@@ -1,4 +1,5 @@
 pub mod color;
+pub mod mesh;
 pub mod pipeline;
 
 use std::sync::Arc;
@@ -11,7 +12,7 @@ use wgpu::{
 };
 use winit::window::Window;
 
-use crate::renderer::pipeline::RendererPipeline;
+use crate::renderer::{mesh::INDICES_FORMAT, pipeline::RendererPipeline};
 
 pub struct GameRenderer {
     window: Arc<Window>,
@@ -116,15 +117,28 @@ impl GameRenderer {
                 multiview_mask: None, // Required for anti-aliasing/multisampling.
             });
             render_pass.set_pipeline(&self.pipeline.pipeline);
+
             render_pass.set_bind_group(0, &self.pipeline.camera_bind_group, &[]);
+
+            for object in &self.pipeline.objects {
+                let mesh = &self.pipeline.meshes[object.mesh_id];
+
+                // Object bind group, different per object.
+                render_pass.set_bind_group(1, &object.bind_group, &[]);
+
+                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(mesh.index_buffer.slice(..), INDICES_FORMAT);
+                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            }
+
             // Add renderer pipeline's vertex buffer to the render pass.
-            render_pass.set_vertex_buffer(0, self.pipeline.vertex_buffer.slice(..));
+            // render_pass.set_vertex_buffer(0, self.pipeline.vertex_buffer.slice(..));
             // Add renderer pipeline's indices buffer to the render pass.
-            render_pass
-                .set_index_buffer(self.pipeline.indices_buffer.slice(..), IndexFormat::Uint16);
+            // render_pass
+            //     .set_index_buffer(self.pipeline.indices_buffer.slice(..), IndexFormat::Uint16);
             // Tell the render pass to draw indices from the vertex buffer from
             // 0 to the final one. Use offset = zero, and draw a single instance.
-            render_pass.draw_indexed(0..self.pipeline.indices_num as u32, 0, 0..1);
+            // render_pass.draw_indexed(0..self.pipeline.indices_num as u32, 0, 0..1);
         }
 
         // Submit commands, produced by render pass, to the driver's queue.
