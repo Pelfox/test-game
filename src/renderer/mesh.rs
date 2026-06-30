@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+//! This module implements meshing for objects and their respective vertices
+//! and indices.
 
 use bytemuck::cast_slice;
 use wgpu::{
@@ -7,10 +8,7 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
 };
 
-use crate::{
-    math::{matrix::Matrix4x4, vector::Vec3d},
-    renderer::color::Color,
-};
+use crate::math::{transform::Transform, vector::Vec3d};
 
 /// Describes the format for Vertex indices.
 pub const INDICES_FORMAT: IndexFormat = IndexFormat::Uint16;
@@ -21,23 +19,14 @@ pub const INDICES_FORMAT: IndexFormat = IndexFormat::Uint16;
 pub struct Vertex {
     /// Position of the vertex, relative to mesh local coordinate system.
     pub position: Vec3d,
-    /// Color of the vertex.
-    pub color: Color,
 }
 
 impl Vertex {
-    const ATTRIBUTES: [VertexAttribute; 2] = [
-        VertexAttribute {
-            offset: 0,
-            shader_location: 0,
-            format: Vec3d::VERTEX_FORMAT,
-        },
-        VertexAttribute {
-            offset: size_of::<Vec3d>() as BufferAddress,
-            shader_location: 1,
-            format: Color::VERTEX_FORMAT,
-        },
-    ];
+    const ATTRIBUTES: [VertexAttribute; 1] = [VertexAttribute {
+        offset: 0,
+        shader_location: 0,
+        format: Vec3d::VERTEX_FORMAT,
+    }];
 
     /// Converts [Vertex] to the buffer layout, regardless of its contents.
     pub fn to_buffer_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
@@ -49,9 +38,9 @@ impl Vertex {
         }
     }
 
-    /// Creates a new vertex with the given position and color.
-    pub fn new(position: Vec3d, color: Color) -> Self {
-        Self { position, color }
+    /// Creates a new vertex with the given position (in local coordinate space).
+    pub fn new(position: Vec3d) -> Self {
+        Self { position }
     }
 }
 
@@ -68,20 +57,19 @@ pub struct MeshData {
 impl MeshData {
     /// Creates a new mesh for the cube with the given color.
     ///
-    /// This function applies the same color for all cube's sides, creating an
-    /// 8-vertex cube.
-    pub fn cube(color: Color) -> Self {
+    /// This function creates an 8-vertex cube.
+    pub fn cube() -> Self {
         let vertices = vec![
             // front face corners, z = 1
-            Vertex::new(Vec3d::new(-1.0, -1.0, 1.0), color),
-            Vertex::new(Vec3d::new(1.0, -1.0, 1.0), color),
-            Vertex::new(Vec3d::new(1.0, 1.0, 1.0), color),
-            Vertex::new(Vec3d::new(-1.0, 1.0, 1.0), color),
+            Vertex::new(Vec3d::new(-1.0, -1.0, 1.0)),
+            Vertex::new(Vec3d::new(1.0, -1.0, 1.0)),
+            Vertex::new(Vec3d::new(1.0, 1.0, 1.0)),
+            Vertex::new(Vec3d::new(-1.0, 1.0, 1.0)),
             // back face corners, z = -1
-            Vertex::new(Vec3d::new(-1.0, -1.0, -1.0), color),
-            Vertex::new(Vec3d::new(1.0, -1.0, -1.0), color),
-            Vertex::new(Vec3d::new(1.0, 1.0, -1.0), color),
-            Vertex::new(Vec3d::new(-1.0, 1.0, -1.0), color),
+            Vertex::new(Vec3d::new(-1.0, -1.0, -1.0)),
+            Vertex::new(Vec3d::new(1.0, -1.0, -1.0)),
+            Vertex::new(Vec3d::new(1.0, 1.0, -1.0)),
+            Vertex::new(Vec3d::new(-1.0, 1.0, -1.0)),
         ];
         let indices = vec![
             0, 1, 2, 0, 2, 3, // front
@@ -99,11 +87,12 @@ impl MeshData {
     }
 }
 
-/// Global generator for mesh ID.
-static MESH_ID_GENERATOR: AtomicUsize = AtomicUsize::new(0);
-
 /// Describes the type for the unique mesh ID.
-pub type MeshId = usize;
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub enum MeshId {
+    /// Representation of a cube.
+    Cube,
+}
 
 /// GPU-sided mesh, with ready to write buffers.
 pub struct Mesh {
@@ -118,7 +107,7 @@ pub struct Mesh {
 impl Mesh {
     /// Creates a new GPU-sided mesh for the given device and mesh data from
     /// the CPU, and prepares all buffers for a write.
-    pub fn from_data(device: &wgpu::Device, data: &MeshData) -> (MeshId, Self) {
+    pub fn from_data(device: &wgpu::Device, data: MeshData) -> Self {
         let vertex_label = format!("{}'s Vertex Buffer", data.label);
         let index_label = format!("{}'s Index Buffer", data.label);
 
@@ -133,80 +122,11 @@ impl Mesh {
             contents: cast_slice(&data.indices),
         });
 
-        let mesh_id = MESH_ID_GENERATOR.fetch_add(1, Ordering::SeqCst);
-        (
-            mesh_id,
-            Self {
-                vertex_buffer,
-                index_buffer,
-                index_count: data.indices.len() as u32,
-            },
-        )
-    }
-}
-
-/// Describes mesh transformation.
-pub struct Transform {
-    /// Position component of the transformation.
-    pub position: Vec3d,
-    /// Rotation component of the transformation.
-    pub rotation: Vec3d,
-    /// Scale component of the transformation.
-    pub scale: Vec3d,
-}
-
-impl Default for Transform {
-    fn default() -> Self {
         Self {
-            position: Vec3d::default(),
-            rotation: Vec3d::default(),
-            scale: Vec3d::new(1.0, 1.0, 1.0),
+            vertex_buffer,
+            index_buffer,
+            index_count: data.indices.len() as u32,
         }
-    }
-}
-
-impl Transform {
-    /// Calculates the rotation matrix for the transformation.
-    fn calculate_rotation_matrix(&self) -> Matrix4x4 {
-        let rot = self.rotation;
-        let rotation_x_matrix = Matrix4x4::from_rows([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, rot.x.cos(), -rot.x.sin(), 0.0],
-            [0.0, rot.x.sin(), rot.x.cos(), 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]);
-        let rotation_y_matrix = Matrix4x4::from_rows([
-            [rot.y.cos(), 0.0, rot.y.sin(), 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [-rot.y.sin(), 0.0, rot.y.cos(), 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]);
-        let rotation_z_matrix = Matrix4x4::from_rows([
-            [rot.z.cos(), -rot.z.sin(), 0.0, 0.0],
-            [rot.z.sin(), rot.z.cos(), 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]);
-        rotation_z_matrix.mul(&rotation_y_matrix.mul(&rotation_x_matrix))
-    }
-
-    /// Creates a model matrix for the transformation, combining all specified
-    /// components into a resulting matrix - model matrix.
-    pub fn model_matrix(&self) -> Matrix4x4 {
-        let scale_matrix = Matrix4x4::from_rows([
-            [self.scale.x, 0.0, 0.0, 0.0],
-            [0.0, self.scale.y, 0.0, 0.0],
-            [0.0, 0.0, self.scale.z, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]);
-        let rotation_matrix = self.calculate_rotation_matrix();
-        let position_matrix = Matrix4x4::from_rows([
-            [1.0, 0.0, 0.0, self.position.x],
-            [0.0, 1.0, 0.0, self.position.y],
-            [0.0, 0.0, 1.0, self.position.z],
-            [0.0, 0.0, 0.0, 1.0],
-        ]);
-        position_matrix.mul(&rotation_matrix.mul(&scale_matrix))
     }
 }
 
@@ -225,7 +145,7 @@ pub struct Object {
 }
 
 impl Object {
-    /// Creates a new object.
+    /// Creates a new object with the given properties.
     pub fn new(
         mesh_id: MeshId,
         device: &Device,

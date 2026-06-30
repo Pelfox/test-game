@@ -1,6 +1,8 @@
+//! Representation and implementation for the player's camera.
+
 use crate::math::{matrix::Matrix4x4, vector::Vec3d};
 
-/// Represents the player's camera in the world.
+/// Represents the player's camera.
 ///
 /// This structure is the CPU-side description of the camera.
 pub struct Camera {
@@ -21,6 +23,25 @@ pub struct Camera {
 }
 
 impl Camera {
+    /// Creates a new camera from the given parameters.
+    pub fn new(
+        eye: Vec3d,
+        direction: Vec3d,
+        up_direction: Vec3d,
+        aspect_ratio: f32,
+        fov: f32,
+    ) -> Self {
+        Self {
+            eye,
+            direction,
+            up_direction,
+            aspect_ratio,
+            fov,
+            near: 0.1,
+            far: 100.0,
+        }
+    }
+
     /// Creates a view matrix for the current camera position.
     pub fn view_matrix(&self) -> Matrix4x4 {
         let forward = self.direction.normalize();
@@ -47,26 +68,5 @@ impl Camera {
             [0.0, 0.0, far / (near - far), (near * far) / (near - far)],
             [0.0, 0.0, -1.0, 0.0],
         ])
-    }
-}
-
-/// Represents the GPU side of the camera.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraUniform {
-    /// The view and the projection matrix of the camera view.
-    pub view_projection_matrix: [[f32; 4]; 4],
-}
-
-impl CameraUniform {
-    /// Creates a new camera uniform from the given camera, extracting its
-    /// view and projection matrices and multiplying it.
-    pub fn from_camera(camera: &Camera) -> Self {
-        Self {
-            view_projection_matrix: camera
-                .projection_matrix()
-                .mul(&camera.view_matrix())
-                .to_wgsl_matrix(),
-        }
     }
 }

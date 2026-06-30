@@ -1,3 +1,6 @@
+//! This module contains representation and implementation for specifying colors
+//! in different formats.
+
 /// Represents a single color, in sRGB color space as three f32 components.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

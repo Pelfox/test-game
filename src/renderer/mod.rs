@@ -1,3 +1,4 @@
+pub mod camera;
 pub mod color;
 pub mod mesh;
 pub mod pipeline;
@@ -5,17 +6,18 @@ pub mod pipeline;
 use std::sync::Arc;
 
 use wgpu::{
-    Color, Device, IndexFormat, Instance, LoadOp, Operations, Queue, RenderPassColorAttachment,
-    RenderPassDepthStencilAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp,
-    Surface,
+    Device, Instance, Queue, RequestAdapterOptions, Surface,
     wgt::{CommandEncoderDescriptor, DeviceDescriptor, TextureViewDescriptor},
 };
 use winit::window::Window;
 
-use crate::renderer::{mesh::INDICES_FORMAT, pipeline::RendererPipeline};
+use crate::{
+    math::{transform::Transform, vector::Vec3d},
+    renderer::pipeline::RendererPipeline,
+    scene::{camera::Camera, object::CubeObject},
+};
 
 pub struct GameRenderer {
-    window: Arc<Window>,
     surface: Surface<'static>,
     device: Device,
     queue: Queue,
@@ -46,16 +48,38 @@ impl GameRenderer {
         surface.configure(&device, &config);
         log::debug!("Configured window's surface for the target device");
 
-        let pipeline = RendererPipeline::new(&device, &config.format, config.width, config.height);
+        // TODO: This probably should be in the constructor arguments.
+        let camera = Camera::new(
+            Vec3d::new(0.0, 0.0, 0.0),
+            Vec3d::new(0.0, 0.0, -1.0),
+            Vec3d::new(0.0, 1.0, 0.0),
+            config.width as f32 / config.height as f32,
+            45.0f32.to_radians(),
+        );
+
+        let mut pipeline =
+            RendererPipeline::new(&device, &camera, config.width, config.height, config.format);
+
+        let mut cube_object = CubeObject::new();
+        cube_object.with_transform(Transform {
+            position: Vec3d::new(0.0, 0.5, -5.0),
+            rotation: Vec3d::default(),
+            scale: Vec3d::new(1.0, 1.0, 1.0),
+        });
+        pipeline.register_object(&device, cube_object.into_object_parts());
 
         Ok(Self {
-            window,
             surface,
             device,
             queue,
             pipeline,
         })
     }
+
+    // TODO: public API later on.
+    // pub fn register_object(&mut self, values: (MeshId, Transform)) {
+    //     self.pipeline.register_object(&self.device, values);
+    // }
 
     pub fn render(&self) {
         let frame = match self.surface.get_current_texture() {
@@ -73,73 +97,17 @@ impl GameRenderer {
 
         // Since GPU does not execute each command individually, we need a
         // command encoder (like a textbook).
-        let descriptor = CommandEncoderDescriptor {
-            label: Some("Renderer Command Encoder"),
-        };
-        let mut command_encoder = self.device.create_command_encoder(&descriptor);
+        let mut command_encoder = self
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Renderer Command Encoder"),
+            });
 
         // Here we are beginning a new render pass. It's a set of commands for
         // the command encoder to produce a specific image on the surface using
         // available frame and a texture view.
-        {
-            let mut render_pass = command_encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Renderer Render Pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &texture_view,  // Texture view to draw the render pass on.
-                    depth_slice: None,    // The depth slice for the 3D view.
-                    resolve_target: None, // Anti-aliasing/multisampling setting.
-                    ops: Operations {
-                        // Tells wgpu to clear the frame with the given color.
-                        // If frame isn't cleared, the previous texture / frame
-                        // will be still present.
-                        load: LoadOp::Clear(Color {
-                            r: 0.05,
-                            g: 0.05,
-                            b: 0.08,
-                            a: 1.0,
-                        }),
-                        // Keep drawn pixels on the screen.
-                        store: StoreOp::Store,
-                    },
-                })],
-                // Allows GPU to select which triangle is closer.
-                // TODO: read more about this
-                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                    view: &self.pipeline.depth_texture_view,
-                    depth_ops: Some(Operations {
-                        load: LoadOp::Clear(1.0),
-                        store: StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None, // Required for anti-aliasing/multisampling.
-            });
-            render_pass.set_pipeline(&self.pipeline.pipeline);
-
-            render_pass.set_bind_group(0, &self.pipeline.camera_bind_group, &[]);
-
-            for object in &self.pipeline.objects {
-                let mesh = &self.pipeline.meshes[object.mesh_id];
-
-                // Object bind group, different per object.
-                render_pass.set_bind_group(1, &object.bind_group, &[]);
-
-                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(mesh.index_buffer.slice(..), INDICES_FORMAT);
-                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-            }
-
-            // Add renderer pipeline's vertex buffer to the render pass.
-            // render_pass.set_vertex_buffer(0, self.pipeline.vertex_buffer.slice(..));
-            // Add renderer pipeline's indices buffer to the render pass.
-            // render_pass
-            //     .set_index_buffer(self.pipeline.indices_buffer.slice(..), IndexFormat::Uint16);
-            // Tell the render pass to draw indices from the vertex buffer from
-            // 0 to the final one. Use offset = zero, and draw a single instance.
-            // render_pass.draw_indexed(0..self.pipeline.indices_num as u32, 0, 0..1);
-        }
+        self.pipeline
+            .create_render_pass(&mut command_encoder, &texture_view);
 
         // Submit commands, produced by render pass, to the driver's queue.
         self.queue.submit(std::iter::once(command_encoder.finish()));
