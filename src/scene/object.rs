@@ -31,7 +31,7 @@ impl CubeObject {
 
     /// Converts this object into parts that will create the final renderer
     /// object.
-    pub fn into_object_parts(self) -> (MeshId, Transform) {
-        (MeshId::Cube, self.transform)
+    pub fn into_object_parts(self) -> (MeshId, Transform, Material) {
+        (MeshId::Cube, self.transform, self.material)
     }
 }

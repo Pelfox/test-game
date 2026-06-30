@@ -17,7 +17,11 @@ use crate::{
         camera::GpuCamera,
         mesh::{INDICES_FORMAT, Mesh, MeshData, MeshId, Object, Vertex},
     },
+    scene::material::Material,
 };
+
+/// Represents the return type of the user-level game object to be registered.
+pub type ObjectParts = (MeshId, Transform, Material);
 
 /// Initializes all available mesh types (from [MeshId]) with their respective
 /// CPU-sided [MeshData] for each mesh type.
@@ -62,7 +66,7 @@ impl RendererPipeline {
                 label: Some("Objects Bind Group Layout"),
                 entries: &[BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: ShaderStages::VERTEX,
+                    visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -95,7 +99,7 @@ impl RendererPipeline {
             mip_level_count: 1,
             sample_count: 1,
             dimension: TextureDimension::D2,
-            format: TextureFormat::Depth24Plus,
+            format: TextureFormat::Depth24Plus, // TODO: Configure this, if needed.
             usage: TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
@@ -160,8 +164,14 @@ impl RendererPipeline {
     }
 
     /// Registers a new object to be drawn on the next frame.
-    pub fn register_object(&mut self, device: &Device, (mesh_id, transform): (MeshId, Transform)) {
-        let object = Object::new(mesh_id, device, transform, &self.objects_bind_group_layout);
+    pub fn register_object(&mut self, device: &Device, parts: ObjectParts) {
+        let object = Object::new(
+            parts.0,
+            device,
+            parts.1,
+            parts.2,
+            &self.objects_bind_group_layout,
+        );
         self.objects.push(object);
     }
 

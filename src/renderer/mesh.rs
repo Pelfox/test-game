@@ -8,7 +8,10 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
 };
 
-use crate::math::{transform::Transform, vector::Vec3d};
+use crate::{
+    math::{transform::Transform, vector::Vec3d},
+    scene::material::Material,
+};
 
 /// Describes the format for Vertex indices.
 pub const INDICES_FORMAT: IndexFormat = IndexFormat::Uint16;
@@ -136,6 +139,8 @@ pub struct Object {
     pub mesh_id: MeshId,
     /// Transformation that must be applied to the object.
     pub transform: Transform,
+    /// Object's texture material.
+    pub material: Material,
     /// Object's uniform to be sent to GPU.
     pub uniform: ObjectUniform,
     /// GPU buffer for the object.
@@ -150,10 +155,16 @@ impl Object {
         mesh_id: MeshId,
         device: &Device,
         transform: Transform,
+        material: Material,
         bind_group_layout: &BindGroupLayout,
     ) -> Self {
+        let color_material = match material {
+            Material::Color(color) => [color.r, color.g, color.b, color.a],
+        };
+
         let uniform = ObjectUniform {
             model_matrix: transform.model_matrix().to_wgsl_matrix(),
+            color_material,
         };
 
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -174,6 +185,7 @@ impl Object {
         Self {
             mesh_id,
             transform,
+            material,
             uniform,
             buffer,
             bind_group,
@@ -187,4 +199,6 @@ impl Object {
 pub struct ObjectUniform {
     /// Model matrix of the object's mesh.
     pub model_matrix: [[f32; 4]; 4],
+    /// Value for the object's material color.
+    pub color_material: [f32; 4],
 }
