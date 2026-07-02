@@ -1,6 +1,13 @@
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::{
+    event_loop::{ControlFlow, EventLoop},
+    keyboard::{KeyCode, PhysicalKey},
+};
 
-use crate::{app::GameApp, input::InputEvent};
+use crate::{
+    app::{GameApp, GameAppDescriptor},
+    input::InputEvent,
+    renderer::CameraPositionMovement,
+};
 
 pub mod app;
 pub mod input;
@@ -23,7 +30,11 @@ fn main() {
     };
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut game_app = GameApp::default();
+    let mut game_app = GameApp::new(GameAppDescriptor {
+        camera_movement_delta: 100.0,
+        ..Default::default()
+    });
+
     game_app.register_input_handler(|event, game_state, _| {
         match event {
             InputEvent::MouseMovement { x, y } => {
@@ -31,9 +42,18 @@ fn main() {
                 let delta_y = *y as f32 * MOUSE_SENSITIVITY;
                 if let Some(renderer) = game_state.renderer.as_mut() {
                     renderer.update_camera_direction(delta_x, delta_y);
-                    renderer.render();
-                    log::info!("Updating camera: delta_x={delta_x:?}, delta_y={delta_y:?}");
                 }
+            }
+            InputEvent::KeyboardKeyPress { keys, .. } => {
+                let pressed = |code: KeyCode| keys.contains(&PhysicalKey::Code(code));
+                game_state.camera_movement = CameraPositionMovement {
+                    forward: pressed(KeyCode::KeyW),
+                    backward: pressed(KeyCode::KeyS),
+                    left: pressed(KeyCode::KeyA),
+                    right: pressed(KeyCode::KeyD),
+                    up: pressed(KeyCode::Space),
+                    down: pressed(KeyCode::ShiftLeft),
+                };
             }
             _ => {}
         }

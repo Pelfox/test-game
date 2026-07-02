@@ -22,6 +22,7 @@ pub const INDICES_FORMAT: IndexFormat = IndexFormat::Uint16;
 pub struct Vertex {
     /// Position of the vertex, relative to mesh local coordinate system.
     pub position: Vec3d,
+
     /// The direction of the normal axis for the vertex.
     pub normal: Vec3d,
 }
@@ -61,8 +62,10 @@ impl Vertex {
 pub struct MeshData {
     /// Vertices of the current mesh.
     pub vertices: Vec<Vertex>,
+
     /// Indices for the vertices of the current mesh.
     pub indices: Vec<u16>,
+
     /// The label of the current container, used for debugging.
     pub label: &'static str,
 }
@@ -161,8 +164,10 @@ pub enum MeshId {
 pub struct Mesh {
     /// Buffer for all [MeshData]'s vertices.
     pub vertex_buffer: Buffer,
+
     /// Buffer for all [MeshData]'s indices.
     pub index_buffer: Buffer,
+
     /// Total amount of indices from the [MeshData].
     pub index_count: u32,
 }
@@ -197,14 +202,19 @@ impl Mesh {
 pub struct Object {
     /// The ID for the mesh that this object is connected to.
     pub mesh_id: MeshId,
+
     /// Transformation that must be applied to the object.
     pub transform: Transform,
+
     /// Object's texture material.
     pub material: Material,
+
     /// Object's uniform to be sent to GPU.
     pub uniform: ObjectUniform,
+
     /// GPU buffer for the object.
     pub buffer: Buffer,
+
     /// Object's binding group.
     pub bind_group: BindGroup,
 }
@@ -259,6 +269,7 @@ impl Object {
 pub struct ObjectUniform {
     /// Model matrix of the object's mesh.
     pub model_matrix: [[f32; 4]; 4],
+
     /// Value for the object's material color.
     pub color_material: [f32; 4],
 }

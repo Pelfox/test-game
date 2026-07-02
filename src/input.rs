@@ -1,16 +1,19 @@
 //! This module represents and implements input events, state and handling.
 
+use std::collections::HashSet;
+
 use winit::{
     event::{DeviceEvent, ElementState, WindowEvent},
     keyboard::PhysicalKey,
 };
 
 /// Describes a single unique input event.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum InputEvent {
     /// Indicates that focus of the outer window has changed. Boolean indicates
     /// whether window is now active (focused) or not.
     FocusChange(bool),
+
     /// Indicates that the key or a set of keys of the keyboard are pressed or
     /// released.
     KeyboardKeyPress {
@@ -19,9 +22,12 @@ pub enum InputEvent {
         /// This value already includes all modifiers and is
         /// language-independent.
         key: PhysicalKey,
+        /// The list of all pressed physical keys.
+        keys: HashSet<PhysicalKey>,
         /// State of the key.
         state: ElementState,
     },
+
     /// Represents mouse movement inside the window.
     ///
     /// Coordinates are delta to the previous location.
@@ -31,6 +37,7 @@ pub enum InputEvent {
         /// Position delta alongside Y axis.
         y: f64,
     },
+
     /// Represents cursor movement inside the window.
     ///
     /// Coordinates are absolute coordinates for cursor's position in the
@@ -56,6 +63,7 @@ pub type InputEventHandler<GS, IS> =
 #[derive(Default)]
 pub struct InputState<GS> {
     handlers: Vec<InputEventHandler<GS, Self>>,
+    pressed_keys: HashSet<PhysicalKey>,
 }
 
 impl<GS> InputState<GS> {
@@ -83,14 +91,30 @@ impl<GS> InputState<GS> {
     pub fn on_window_event(&mut self, game_state: &mut GS, event: WindowEvent) {
         match event {
             WindowEvent::Focused(focused) => {
+                if !focused {
+                    self.pressed_keys.clear();
+                }
                 self.emit_event(game_state, InputEvent::FocusChange(focused));
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                // We want to modify pressed keys only on the first occurence.
+                match event.state {
+                    ElementState::Pressed => {
+                        if !event.repeat {
+                            self.pressed_keys.insert(event.physical_key);
+                        }
+                    }
+                    ElementState::Released => {
+                        self.pressed_keys.remove(&event.physical_key);
+                    }
+                }
+
                 // TODO: Ideally, I think, we should provide modifiers for the
                 // key too? It is possible to inherit modifiers from some
                 // physical keys.
                 let event = InputEvent::KeyboardKeyPress {
                     key: event.physical_key,
+                    keys: self.pressed_keys.clone(),
                     state: event.state,
                 };
                 self.emit_event(game_state, event);

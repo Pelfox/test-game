@@ -24,8 +24,36 @@ use crate::{
     },
 };
 
+/// Represents the movement for the camera position, allowing to choose in
+/// which direction camera should move.
+///
+/// Rendering method will apply the target movement speed to  all selected
+/// directions automatically. No validation for cancellation (i.e. forward and
+/// backward) is peformed.
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
+pub struct CameraPositionMovement {
+    /// Whether camera should be moved forward relative to the viewport.
+    pub forward: bool,
+
+    /// Whether camera should be moved backward relative to the viewport.
+    pub backward: bool,
+
+    /// Whether camera should be moved to the right relative to the viewport.
+    pub right: bool,
+
+    /// Whether camera should be moved to the left relative to the viewport.
+    pub left: bool,
+
+    /// Whether camera should be moved up relative to the viewport.
+    pub up: bool,
+
+    /// Whether camera should be moved down relative to the viewport.
+    pub down: bool,
+}
+
 /// Represents game renderer itself.
 pub struct GameRenderer {
+    window: Arc<Window>,
     surface: Surface<'static>,
     device: Device,
     queue: Queue,
@@ -96,6 +124,7 @@ impl GameRenderer {
         pipeline.register_object(&device, plane_object.into_object_parts());
 
         Ok(Self {
+            window,
             surface,
             device,
             queue,
@@ -127,6 +156,86 @@ impl GameRenderer {
         self.pipeline
             .gpu_camera
             .schedule_update(&self.camera, &self.queue);
+    }
+
+    /// Updates camera position in the direction of the given delta and with
+    /// the given amount.
+    ///
+    /// This method does not perform any validation for the delta and amount,
+    /// and it is completely possible that movement will cancel out itself.
+    /// The provided speed is a speed relative to the world coordinate system.
+    ///
+    /// To ensure the correctness of the movement, all vector deltas will be
+    /// multiplied with the delta time from the upper rendering layer. Diagonal
+    /// movement equals the linear movement, since all delta vectors are
+    /// normalized.
+    pub fn update_camera_position(
+        &mut self,
+        movement: CameraPositionMovement,
+        speed: f32,
+        delta_time: f32,
+    ) {
+        if movement == CameraPositionMovement::default() {
+            return;
+        }
+
+        if speed <= 0.0 {
+            log::error!("Camera position received an invalid speed: {speed}");
+            return;
+        }
+
+        if delta_time <= 0.0 {
+            log::error!("Camera position received an invalid delta time: {delta_time}");
+            return;
+        }
+
+        let direction = self.camera.direction();
+        let amount = speed * delta_time;
+
+        // Calculate vectors for each second direction. We can calculate only
+        // two out of six vectors since we can reverse them.
+        let forward = Vec3d::new(direction.x, 0.0, direction.z).normalize();
+        let right = forward.cross(&self.camera.up_direction).normalize();
+        let up = self.camera.up_direction;
+
+        let mut eye = self.camera.eye;
+        if movement.forward {
+            eye = eye.add(&forward.mul_num(amount));
+        }
+        if movement.backward {
+            eye = eye.add(&forward.mul_num(amount).reverse());
+        }
+        if movement.right {
+            eye = eye.add(&right.mul_num(amount));
+        }
+        if movement.left {
+            eye = eye.add(&right.mul_num(amount).reverse());
+        }
+        if movement.up {
+            eye = eye.add(&up.mul_num(amount));
+        }
+        if movement.down {
+            eye = eye.add(&up.mul_num(amount).reverse());
+        }
+
+        // No changes to the camera position have been made.
+        if eye == self.camera.eye {
+            return;
+        }
+
+        self.camera.eye = eye;
+        self.pipeline
+            .gpu_camera
+            .schedule_update(&self.camera, &self.queue);
+    }
+
+    /// Issues a redraw request for the current window.
+    ///
+    /// It is preferred to use this function instead of [GameRenderer::render],
+    /// since it groups multiple similar redraw requests, allowing for a better
+    /// performance.
+    pub fn request_redraw(&self) {
+        self.window.request_redraw();
     }
 
     /// Performs rendering for a single frame, using currently available data.

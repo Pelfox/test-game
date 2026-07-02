@@ -7,10 +7,13 @@
 pub struct Color {
     /// Red channel of the color.
     pub r: f32,
+
     /// Green channel of the color.
     pub g: f32,
+
     /// Blue channel of the color.
     pub b: f32,
+
     /// Alpha (transparency) channel of the color.
     pub a: f32,
 }

@@ -33,23 +33,6 @@ impl Matrix4x4 {
         result_matrix
     }
 
-    /// Multiplies the current matrix with the given four-dimensional vector.
-    pub fn mul_vec(&self, vec: &super::vector::Vec4d) -> [f32; 4] {
-        let vec_matrix = Self::from_rows([
-            [vec.x, 0.0, 0.0, 0.0],
-            [vec.y, 0.0, 0.0, 0.0],
-            [vec.z, 0.0, 0.0, 0.0],
-            [vec.w, 0.0, 0.0, 0.0],
-        ]);
-        let result = self.mul(&vec_matrix);
-        [
-            result.rows[0][0],
-            result.rows[1][0],
-            result.rows[2][0],
-            result.rows[3][0],
-        ]
-    }
-
     /// Converts this matrix into WGSL-compatible one, passing colums first, then rows.
     pub fn to_wgsl_matrix(&self) -> [[f32; 4]; 4] {
         [

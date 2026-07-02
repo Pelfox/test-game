@@ -14,8 +14,10 @@ use crate::scene::camera::Camera;
 pub struct GpuCamera {
     /// GPU buffer that camera will be writing into.
     pub buffer: Buffer,
+
     /// Bind group for the camera.
     pub bind_group: BindGroup,
+
     /// The layout of the camera's bind group.
     pub bind_group_layout: BindGroupLayout,
 }

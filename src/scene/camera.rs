@@ -12,17 +12,21 @@ const Z_FAR: f32 = 100.0;
 ///
 /// This structure is the CPU-side description of the camera.
 pub struct Camera {
-    /// Camera position relative to world coordinate system.
-    eye: Vec3d,
-    /// "Up" direction of the camera.
-    up_direction: Vec3d,
     /// Aspect ratio of the screen.
     aspect_ratio: f32,
 
+    /// "Up" direction of the camera.
+    pub up_direction: Vec3d,
+
+    /// Camera position relative to world coordinate system.
+    pub eye: Vec3d,
+
     /// Camera's field of view, in radians.
     pub fov: f32,
+
     /// Current rotational movement alongside vertical axis of the camera.
     pub yaw: f32,
+
     /// Current rotational movement alongside X axis of the camera.
     pub pitch: f32,
 }
@@ -43,7 +47,6 @@ impl Camera {
     /// Calculates the three-dimensional vector of the direction in which
     /// camera is looking.
     pub fn direction(&self) -> Vec3d {
-        println!("yaw={}, pitch={}", self.yaw, self.pitch);
         Vec3d::new(
             self.yaw.sin() * self.pitch.cos(),
             self.pitch.sin(),

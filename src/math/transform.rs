@@ -7,8 +7,10 @@ use crate::math::{matrix::Matrix4x4, vector::Vec3d};
 pub struct Transform {
     /// Position component of the transformation.
     pub position: Vec3d,
+
     /// Rotation component of the transformation.
     pub rotation: Vec3d,
+
     /// Scale component of the transformation.
     pub scale: Vec3d,
 }
