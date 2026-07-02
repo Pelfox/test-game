@@ -1,3 +1,6 @@
+//! This module describes and implements a mathematical transformation for
+//! vectors.
+
 use crate::math::{matrix::Matrix4x4, vector::Vec3d};
 
 /// Describes mesh transformation.

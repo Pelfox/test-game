@@ -1,3 +1,5 @@
+//! This module represents and implements mathematical vectors.
+
 /// Represents a three-dimensional vector.
 #[repr(C)]
 #[derive(Clone, Copy, Default, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

@@ -1,3 +1,5 @@
+//! This module describes and implements matrices for different sizes.
+
 /// Represents a 4x4 matrix for the f32 type.
 #[repr(C)]
 #[derive(Clone, Copy, std::fmt::Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

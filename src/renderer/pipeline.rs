@@ -1,3 +1,6 @@
+//! This module implements renderer pipeline, enabling support for shaders, and
+//! implementing the logic behind drawing objects in the world.
+
 use std::collections::HashMap;
 
 use wgpu::{
@@ -36,15 +39,17 @@ fn initialize_mesh_types(device: &Device) -> HashMap<MeshId, Mesh> {
 pub struct RendererPipeline {
     depth_texture_view: TextureView,
     pipeline: RenderPipeline,
-    gpu_camera: GpuCamera,
     objects: Vec<Object>,
     objects_bind_group_layout: BindGroupLayout,
     meshes: HashMap<MeshId, Mesh>,
+
+    /// Representation of a GPU-sided player's camera.
+    pub(crate) gpu_camera: GpuCamera,
 }
 
 impl RendererPipeline {
     /// Creates a new renderer pipeline for the given target device, camera and
-    /// output parameters.
+    /// output (screen) parameters.
     pub fn new(
         device: &Device,
         camera: &crate::scene::camera::Camera,
@@ -157,14 +162,17 @@ impl RendererPipeline {
         Self {
             depth_texture_view,
             pipeline,
-            gpu_camera,
             objects: Vec::new(),
             objects_bind_group_layout,
             meshes: initialize_mesh_types(device),
+            gpu_camera,
         }
     }
 
-    /// Registers a new object to be drawn on the next frame.
+    /// Registers a new object to be drawn.
+    ///
+    /// This method does not mutate current frame's objects, but it will queue
+    /// the object to be drawn on the next frame.
     pub fn register_object(&mut self, device: &Device, parts: ObjectParts) {
         let object = Object::new(
             parts.0,

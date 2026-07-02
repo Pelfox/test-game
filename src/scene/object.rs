@@ -1,3 +1,5 @@
+//! This module describes and represents available game objects.
+
 use crate::{
     math::transform::Transform,
     renderer::{color::Color, mesh::MeshId},
